@@ -1,5 +1,6 @@
-# On-demand builds of the packaged app for macOS (Apple Silicon) and Windows,
-# published to a single rolling "Latest builds" release on the repo's Releases page.
+# On-demand builds of the packaged app for macOS (Apple Silicon), macOS (Intel),
+# and Windows, published to a single rolling "Latest builds" release on the
+# repo's Releases page.
 #
 # Trigger: manual only (Actions tab -> this workflow -> "Run workflow"), by design:
 # this repo is private for now, and macOS runners bill 10x against the free monthly
@@ -30,6 +31,8 @@ jobs:
         include:
           - os: macos-latest
             asset: LockingZip-macOS-AppleSilicon.zip
+          - os: macos-13
+            asset: LockingZip-macOS-Intel.zip
           - os: windows-latest
             asset: LockingZip-Windows.zip
     runs-on: ${{ matrix.os }}
@@ -95,13 +98,15 @@ jobs:
           gh release create latest \
             --title "Latest builds ($(date +%Y-%m-%d))" \
             --notes "$(cat <<'NOTES'
-          Freshly built from the newest code. Both apps are unsigned personal builds -- expect a one-time security prompt.
+          Freshly built from the newest code. All builds are unsigned personal builds -- expect a one-time security prompt.
 
-          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the macOS zip, unzip, move "LockingZip.app" wherever you like, then RIGHT-CLICK it and choose Open the first time (a normal double-click shows a warning with no Open button). Intel Macs aren't covered by this build; run from source instead (see the README).
+          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the "AppleSilicon" zip, unzip, move "LockingZip.app" wherever you like, then RIGHT-CLICK it and choose Open the first time (a normal double-click shows a warning with no Open button).
+
+          **macOS (Intel)** -- download the "Intel" zip, same install steps as above (right-click -> Open the first time).
 
           **Windows** -- download the Windows zip, unzip the whole folder, and run "LockingZip.exe" inside it. If SmartScreen shows "Windows protected your PC", click "More info" then "Run anyway".
 
           Drop a file or folder onto the app, set a password, and it saves a password-protected .zip you can open anywhere by double-clicking and entering the password.
           NOTES
           )" \
-            LockingZip-macOS-AppleSilicon.zip LockingZip-Windows.zip
+            LockingZip-macOS-AppleSilicon.zip LockingZip-macOS-Intel.zip LockingZip-Windows.zip

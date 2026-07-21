@@ -7,13 +7,16 @@ the password -- no extra software needed on either Mac or Windows.
 ## 0. Download the app (no coding needed)
 
 Ready-made downloads live on this repo's **Releases** page (right sidebar on
-GitHub, or `/releases`): one "Latest builds" entry with a macOS zip and a
-Windows zip, rebuilt on demand from the newest code.
+GitHub, or `/releases`): one "Latest builds" entry with a macOS Apple Silicon
+zip, a macOS Intel zip, and a Windows zip, rebuilt on demand from the newest
+code.
 
-- **macOS (Apple Silicon: M1/M2/M3/M4)** -- unzip, put `LockingZip.app`
-  anywhere, then **right-click it and choose Open** the first time (the app is
-  unsigned, so a plain double-click shows a warning with no Open button).
-  Intel Macs aren't covered by this build -- run from source (section 3).
+- **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the "AppleSilicon" zip,
+  unzip, put `LockingZip.app` anywhere, then **right-click it and choose
+  Open** the first time (the app is unsigned, so a plain double-click shows a
+  warning with no Open button).
+- **macOS (Intel)** -- download the "Intel" zip, same install steps as above
+  (right-click -> Open the first time).
 - **Windows** -- unzip the whole folder and run `LockingZip.exe` inside it.
   If SmartScreen says "Windows protected your PC", click **More info -> Run
   anyway** (same unsigned-app reason).
