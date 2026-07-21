@@ -8,15 +8,15 @@ the password -- no extra software needed on either Mac or Windows.
 
 Ready-made downloads live on this repo's **Releases** page (right sidebar on
 GitHub, or `/releases`): one "Latest builds" entry with a macOS Apple Silicon
-zip, a macOS Intel zip, and a Windows zip, rebuilt on demand from the newest
-code.
+zip and a Windows zip, rebuilt on demand from the newest code.
 
-- **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the "AppleSilicon" zip,
-  unzip, put `LockingZip.app` anywhere, then **right-click it and choose
-  Open** the first time (the app is unsigned, so a plain double-click shows a
-  warning with no Open button).
-- **macOS (Intel)** -- download the "Intel" zip, same install steps as above
-  (right-click -> Open the first time).
+- **macOS (Apple Silicon: M1/M2/M3/M4)** -- unzip, put `LockingZip.app`
+  anywhere, then **right-click it and choose Open** the first time (the app is
+  unsigned, so a plain double-click shows a warning with no Open button).
+- **macOS (Intel)** -- there's no packaged download for Intel Macs (GitHub
+  retired its hosted Intel macOS build machines, so we can't produce one
+  automatically). Run it from source instead -- see **section 3**, it only
+  takes a minute and works exactly the same as the packaged app.
 - **Windows** -- unzip the whole folder and run `LockingZip.exe` inside it.
   If SmartScreen says "Windows protected your PC", click **More info -> Run
   anyway** (same unsigned-app reason).
@@ -50,13 +50,25 @@ it's crackable by someone with the right tools and enough motivation --
 helps a lot. The app never stores or logs your password anywhere; if you
 forget it, there is no recovery.
 
-## 3. Development
+## 3. Development (and running on Intel Mac)
+
+Needs Python 3 -- macOS usually has it already; check with `python3 --version`
+in Terminal, or install from https://python.org if that command isn't found.
 
 ```
+git clone <this repo's URL>
+cd Locking-zip
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python main_gui.py       # run the app from source
+python main_gui.py       # launches the app, works identically to the packaged version
+```
+
+That's the whole setup -- `python main_gui.py` opens the same window as the
+packaged app. Re-run those last two lines (`source venv/bin/activate` then
+`python main_gui.py`) any time you want to open it again later.
+
+```
 python -m pytest tests/ -q
 ```
 
