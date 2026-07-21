@@ -16,7 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
-from locking_zip import core, fsutil, gui_logic
+from locking_zip import core, fsutil, gui_logic, theme
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -29,59 +29,71 @@ class PasswordDialog(tk.Toplevel):
     """Modal dialog collecting a password + confirmation. Sets self.result to
     the password string on OK, or None on Cancel/close."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, palette: dict):
         super().__init__(parent)
+        self._p = palette
         self.result: Optional[str] = None
         self.title("Set Password")
+        self.configure(bg=palette["bg"])
         self.transient(parent)
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
-        pad = {"padx": 12, "pady": 6}
+        pad = {"padx": 20, "pady": 6}
 
-        ttk.Label(self, text="Password:").grid(row=0, column=0, sticky="e", **pad)
+        ttk.Label(self, text="🔒 Set a password", style="Title.TLabel").grid(
+            row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(20, 12)
+        )
+
+        ttk.Label(self, text="Password").grid(row=1, column=0, sticky="w", padx=20)
         self._pw_var = tk.StringVar()
-        self._pw_entry = ttk.Entry(self, textvariable=self._pw_var, show="*", width=28)
-        self._pw_entry.grid(row=0, column=1, **pad)
+        self._pw_entry = ttk.Entry(self, textvariable=self._pw_var, show="•", width=30)
+        self._pw_entry.grid(row=2, column=0, columnspan=2, sticky="ew", padx=20)
 
-        ttk.Label(self, text="Confirm:").grid(row=1, column=0, sticky="e", **pad)
+        ttk.Label(self, text="Confirm password").grid(row=3, column=0, sticky="w", padx=20, pady=(10, 0))
         self._confirm_var = tk.StringVar()
-        self._confirm_entry = ttk.Entry(self, textvariable=self._confirm_var, show="*", width=28)
-        self._confirm_entry.grid(row=1, column=1, **pad)
+        self._confirm_entry = ttk.Entry(self, textvariable=self._confirm_var, show="•", width=30)
+        self._confirm_entry.grid(row=4, column=0, columnspan=2, sticky="ew", padx=20)
 
         self._show_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             self, text="Show password", variable=self._show_var, command=self._toggle_show
-        ).grid(row=2, column=1, sticky="w", padx=12)
+        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=18, pady=(8, 0))
 
-        self._strength_label = ttk.Label(self, text="", foreground="#666666")
-        self._strength_label.grid(row=3, column=1, sticky="w", padx=12)
+        self._strength_label = ttk.Label(self, text="", style="Muted.TLabel")
+        self._strength_label.grid(row=6, column=0, columnspan=2, sticky="w", padx=20, pady=(6, 0))
 
-        self._error_label = ttk.Label(self, text="", foreground="#b00020")
-        self._error_label.grid(row=4, column=0, columnspan=2, padx=12, sticky="w")
+        self._error_label = ttk.Label(self, text="", style="Error.TLabel")
+        self._error_label.grid(row=7, column=0, columnspan=2, sticky="w", padx=20)
 
         btn_frame = ttk.Frame(self)
-        btn_frame.grid(row=5, column=0, columnspan=2, pady=(6, 12))
-        self._ok_btn = ttk.Button(btn_frame, text="OK", command=self._on_ok, state="disabled")
-        self._ok_btn.pack(side="left", padx=6)
-        ttk.Button(btn_frame, text="Cancel", command=self._on_cancel).pack(side="left", padx=6)
+        btn_frame.grid(row=8, column=0, columnspan=2, pady=(14, 20), padx=20, sticky="e")
+        ttk.Button(btn_frame, text="Cancel", style="Secondary.TButton", command=self._on_cancel).pack(
+            side="left", padx=(0, 8)
+        )
+        self._ok_btn = ttk.Button(
+            btn_frame, text="Create Zip", style="Accent.TButton", command=self._on_ok, state="disabled"
+        )
+        self._ok_btn.pack(side="left")
 
         self._pw_var.trace_add("write", self._on_input_changed)
         self._confirm_var.trace_add("write", self._on_input_changed)
+        self.bind("<Return>", lambda _e: self._on_ok())
 
         self._pw_entry.focus_set()
         self.grab_set()
         self.wait_window(self)
 
     def _toggle_show(self):
-        show = "" if self._show_var.get() else "*"
+        show = "" if self._show_var.get() else "•"
         self._pw_entry.config(show=show)
         self._confirm_entry.config(show=show)
 
     def _on_input_changed(self, *_args):
         password = self._pw_var.get()
         confirm = self._confirm_var.get()
-        self._strength_label.config(text=gui_logic.estimate_strength(password))
+        strength = gui_logic.estimate_strength(password)
+        self._strength_label.config(text=f"Strength: {strength}" if strength else "")
 
         if not password:
             self._error_label.config(text="")
@@ -112,11 +124,12 @@ class PasswordDialog(tk.Toplevel):
 
 
 class LockingZipApp:
-    def __init__(self, root: tk.Tk):
+    def __init__(self, root: tk.Tk, palette: dict):
         self.root = root
+        self._p = palette
         self.root.title("Locking Zip")
-        self.root.geometry("480x320")
-        self.root.minsize(420, 280)
+        self.root.geometry("560x460")
+        self.root.minsize(480, 400)
 
         self._source: Optional[Path] = None
         self._cancel_event: Optional[threading.Event] = None
@@ -124,66 +137,116 @@ class LockingZipApp:
         self._build_ui()
 
     def _build_ui(self) -> None:
-        outer = ttk.Frame(self.root, padding=16)
+        p = self._p
+        outer = ttk.Frame(self.root, padding=24)
         outer.pack(fill="both", expand=True)
 
-        self._drop_frame = tk.LabelFrame(
-            outer, text="Drop a file or folder here", padx=20, pady=30, bg="#f0f0f0"
+        header = ttk.Frame(outer)
+        header.pack(fill="x", pady=(0, 18))
+        ttk.Label(header, text="🔒 Locking Zip", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(
+            header,
+            text="Drop a file or folder, set a password, get a zip anyone can open.",
+            style="Muted.TLabel",
+        ).pack(anchor="w", pady=(2, 0))
+
+        # Drop zone: a plain tk.Frame (not ttk) so its border color can be
+        # flipped live on drag-enter/leave -- ttk styles are static per-widget-
+        # class and can't be swapped per-instance the way this needs.
+        self._drop_frame = tk.Frame(
+            outer,
+            bg=p["surface"],
+            highlightthickness=2,
+            highlightbackground=p["border"],
+            highlightcolor=p["border"],
         )
         self._drop_frame.pack(fill="both", expand=True)
 
+        drop_inner = tk.Frame(self._drop_frame, bg=p["surface"])
+        drop_inner.place(relx=0.5, rely=0.5, anchor="center")
+
+        self._drop_icon = tk.Label(drop_inner, text="📂", bg=p["surface"], font=("", 32))
+        self._drop_icon.pack(pady=(0, 6))
+
         self._drop_label = tk.Label(
-            self._drop_frame,
-            text="Drag & drop a file or folder\n\n— or —",
-            bg="#f0f0f0",
+            drop_inner,
+            text="Drag & drop a file or folder here",
+            bg=p["surface"],
+            fg=p["text"],
+            font=("", 13, "bold"),
             justify="center",
         )
-        self._drop_label.pack(pady=(10, 10))
+        self._drop_label.pack()
 
-        browse_frame = ttk.Frame(self._drop_frame)
-        browse_frame.pack()
-        ttk.Button(browse_frame, text="Choose File…", command=self._on_browse_file).pack(
-            side="left", padx=6
+        links = tk.Frame(drop_inner, bg=p["surface"])
+        links.pack(pady=(10, 0))
+        self._file_link = ttk.Label(links, text="choose a file", style="Link.TLabel", cursor="hand2")
+        self._file_link.pack(side="left")
+        tk.Label(links, text="   ·   ", bg=p["surface"], fg=p["text_muted"]).pack(side="left")
+        self._folder_link = ttk.Label(links, text="choose a folder", style="Link.TLabel", cursor="hand2")
+        self._folder_link.pack(side="left")
+        self._file_link.bind("<Button-1>", lambda _e: self._on_browse_file())
+        self._folder_link.bind("<Button-1>", lambda _e: self._on_browse_folder())
+
+        self._source_label = ttk.Label(
+            outer, text="No file or folder selected.", style="Muted.TLabel", wraplength=500
         )
-        ttk.Button(browse_frame, text="Choose Folder…", command=self._on_browse_folder).pack(
-            side="left", padx=6
-        )
+        self._source_label.pack(fill="x", pady=(14, 8))
 
-        self._source_label = ttk.Label(outer, text="No file or folder selected.", wraplength=440)
-        self._source_label.pack(fill="x", pady=(12, 6))
-
-        self._progress = ttk.Progressbar(outer, mode="determinate")
+        self._progress = ttk.Progressbar(outer, mode="determinate", style="Accent.Horizontal.TProgressbar")
         self._progress.pack(fill="x", pady=(0, 4))
-        self._progress_label = ttk.Label(outer, text="")
+        self._progress_label = ttk.Label(outer, text="", style="Muted.TLabel")
         self._progress_label.pack(fill="x")
 
         action_frame = ttk.Frame(outer)
-        action_frame.pack(fill="x", pady=(8, 0))
+        action_frame.pack(fill="x", pady=(14, 0))
         self._encrypt_btn = ttk.Button(
-            action_frame, text="Encrypt…", command=self._on_encrypt_clicked, state="disabled"
+            action_frame,
+            text="Encrypt…",
+            style="Accent.TButton",
+            command=self._on_encrypt_clicked,
+            state="disabled",
         )
         self._encrypt_btn.pack(side="left")
         self._cancel_btn = ttk.Button(
-            action_frame, text="Cancel", command=self._on_cancel_clicked, state="disabled"
+            action_frame,
+            text="Cancel",
+            style="Secondary.TButton",
+            command=self._on_cancel_clicked,
+            state="disabled",
         )
         self._cancel_btn.pack(side="left", padx=(8, 0))
 
+        footer = ttk.Label(
+            outer,
+            text="Uses standard zip password protection — the result opens with any unzip tool.",
+            style="Muted.TLabel",
+            wraplength=500,
+        )
+        footer.pack(fill="x", pady=(16, 0))
+
         if _HAS_DND:
             try:
-                self._drop_frame.drop_target_register(DND_FILES)
-                self._drop_frame.dnd_bind("<<Drop>>", self._on_drop)
-                self._drop_label.drop_target_register(DND_FILES)
-                self._drop_label.dnd_bind("<<Drop>>", self._on_drop)
+                for widget in (self._drop_frame, drop_inner, self._drop_icon, self._drop_label):
+                    widget.drop_target_register(DND_FILES)
+                    widget.dnd_bind("<<DropEnter>>", self._on_drag_enter)
+                    widget.dnd_bind("<<DropLeave>>", self._on_drag_leave)
+                    widget.dnd_bind("<<Drop>>", self._on_drop)
             except tk.TclError:
-                self._drop_label.config(
-                    text="Drag & drop unavailable here — use the buttons below.\n"
-                )
+                self._drop_label.config(text="Drag & drop unavailable here — use the links below.")
         else:
-            self._drop_label.config(
-                text="Drag & drop unavailable here — use the buttons below.\n"
-            )
+            self._drop_label.config(text="Drag & drop unavailable here — use the links below.")
+
+    def _on_drag_enter(self, _event) -> None:
+        p = self._p
+        self._drop_frame.config(highlightbackground=p["border_hover"], highlightcolor=p["border_hover"])
+
+    def _on_drag_leave(self, _event) -> None:
+        p = self._p
+        self._drop_frame.config(highlightbackground=p["border"], highlightcolor=p["border"])
 
     def _on_drop(self, event) -> None:
+        self._on_drag_leave(event)
         paths = gui_logic.parse_dropped_paths(event.data, self.root.tk.splitlist)
         if not paths:
             return
@@ -205,8 +268,8 @@ class LockingZipApp:
             messagebox.showerror("Locking Zip", error)
             return
         self._source = path
-        kind = "folder" if path.is_dir() else "file"
-        self._source_label.config(text=f"Selected {kind}: {path}")
+        kind = "📁 Folder" if path.is_dir() else "📄 File"
+        self._source_label.config(text=f"{kind} selected: {path}", style="TLabel")
         self._encrypt_btn.config(state="normal")
 
     def _on_encrypt_clicked(self) -> None:
@@ -230,7 +293,7 @@ class LockingZipApp:
             if not proceed:
                 return
 
-        dialog = PasswordDialog(self.root)
+        dialog = PasswordDialog(self.root, self._p)
         password = dialog.result
         if not password:
             return
@@ -330,13 +393,8 @@ def main() -> None:
     else:
         root = tk.Tk()
 
-    style = ttk.Style(root)
-    try:
-        style.theme_use("clam")
-    except tk.TclError:
-        pass
-
-    app = LockingZipApp(root)
+    palette = theme.apply_theme(root)
+    app = LockingZipApp(root, palette)
     root.mainloop()
 
 
