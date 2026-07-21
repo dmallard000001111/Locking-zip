@@ -1,4 +1,5 @@
 import threading
+import zipfile
 
 import pyzipper
 import pytest
@@ -135,3 +136,83 @@ def test_password_never_appears_in_exception_message(tmp_path):
         core.encrypt_to_zip(entries, dest, secret, overwrite=False)
     except core.OutputExistsError as e:
         assert secret not in str(e)
+
+
+def test_aes_mode_round_trip(tmp_path):
+    source = _make_source(tmp_path)
+    entries, _skipped = fsutil.collect_entries(source)
+    dest = tmp_path / "out.zip"
+
+    core.encrypt_to_zip(entries, dest, "correct-horse", mode=core.MODE_AES)
+
+    with pyzipper.AESZipFile(dest) as zf:
+        assert zf.read("myfolder/a.txt", pwd=b"correct-horse") == b"hello world"
+        with pytest.raises(RuntimeError):
+            zf.read("myfolder/a.txt", pwd=b"wrong-password")
+
+
+@pytest.mark.parametrize("mode", [core.MODE_STANDARD, core.MODE_AES])
+def test_extract_zip_round_trip(tmp_path, mode):
+    source = _make_source(tmp_path)
+    entries, _skipped = fsutil.collect_entries(source)
+    dest = tmp_path / "out.zip"
+    core.encrypt_to_zip(entries, dest, "correct-horse", mode=mode)
+
+    extract_dir = tmp_path / "extracted"
+    core.extract_zip(dest, extract_dir, "correct-horse")
+
+    assert (extract_dir / "myfolder" / "a.txt").read_text() == "hello world"
+    assert (extract_dir / "myfolder" / "sub" / "b.txt").read_text() == "nested contents"
+
+
+@pytest.mark.parametrize("mode", [core.MODE_STANDARD, core.MODE_AES])
+def test_extract_zip_wrong_password(tmp_path, mode):
+    source = _make_source(tmp_path)
+    entries, _skipped = fsutil.collect_entries(source)
+    dest = tmp_path / "out.zip"
+    core.encrypt_to_zip(entries, dest, "correct-horse", mode=mode)
+
+    extract_dir = tmp_path / "extracted"
+    with pytest.raises(core.WrongPasswordError):
+        core.extract_zip(dest, extract_dir, "wrong-password")
+
+    assert not extract_dir.exists()
+    assert not extract_dir.with_name(extract_dir.name + ".part").exists()
+
+
+def test_extract_zip_rejects_path_traversal(tmp_path):
+    evil_zip = tmp_path / "evil.zip"
+    with zipfile.ZipFile(evil_zip, "w") as zf:
+        zf.writestr("../../evil.txt", b"pwned")
+
+    dest = tmp_path / "safe_dest"
+    with pytest.raises(core.UnsafePathError):
+        core.extract_zip(evil_zip, dest, "irrelevant")
+
+    assert not dest.exists()
+    assert not (tmp_path.parent / "evil.txt").exists()
+
+
+def test_extract_zip_cancel_mid_run_cleans_up(tmp_path):
+    source = tmp_path / "bigsrc"
+    source.mkdir()
+    (source / "a.txt").write_bytes(b"x" * (2 * 1024 * 1024))
+    (source / "b.txt").write_bytes(b"y" * (2 * 1024 * 1024))
+    entries, _skipped = fsutil.collect_entries(source)
+    dest = tmp_path / "out.zip"
+    core.encrypt_to_zip(entries, dest, "pw")
+
+    cancel_event = threading.Event()
+
+    def progress_cb(done, total, name):
+        cancel_event.set()
+
+    extract_dir = tmp_path / "extracted"
+    with pytest.raises(core.CancelledError):
+        core.extract_zip(
+            dest, extract_dir, "pw",
+            progress_cb=progress_cb, cancel_event=cancel_event,
+        )
+
+    assert not extract_dir.exists()
+    assert not extract_dir.with_name(extract_dir.name + ".part").exists()

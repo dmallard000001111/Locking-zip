@@ -53,6 +53,10 @@ def test_suggest_dest_name():
     assert gui_logic.suggest_dest_name(Path("/tmp/report.docx")) == "report.zip"
 
 
+def test_suggest_extract_dir():
+    assert gui_logic.suggest_extract_dir(Path("/tmp/archive.zip")) == Path("/tmp/archive")
+
+
 def test_validate_source_missing(tmp_path):
     missing = tmp_path / "nope"
     error = gui_logic.validate_source(missing)

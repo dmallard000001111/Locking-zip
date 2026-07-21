@@ -1,14 +1,14 @@
 """Zip + password-protect engine. No Tk here -- this module is fully unit-testable
 without a display, and is imported by both the GUI worker thread and the tests.
 
-Encryption is legacy ZipCrypto (the classic PKWARE zip password scheme), not AES.
-This is a deliberate choice: AES-encrypted zips can't be opened with a plain
-double-click on stock Windows (Explorer's "Extract All") or stock macOS (Archive
-Utility) -- both only understand ZipCrypto, so AES would require every recipient to
-install a third-party tool (7-Zip, Keka) anyway. ZipCrypto opens natively everywhere
-with just a password prompt, at the cost of being cryptographically weak (crackable
-with modern tools/known-plaintext attacks) -- acceptable here since the goal is
-casual protection with zero-friction compatibility, not high-security encryption.
+Two encryption modes:
+- "standard": legacy ZipCrypto (the classic PKWARE zip password scheme). Opens with
+  a plain double-click + password prompt on stock Windows (Explorer) and macOS
+  (Archive Utility) -- no extra software needed -- at the cost of being
+  cryptographically weak (crackable with modern tools/known-plaintext attacks).
+- "aes": real AES-256 (WinZip AES / WZ_AES). Much stronger, but neither OS's
+  built-in unzip understands it, so opening the result needs a third-party tool
+  (7-Zip on Windows, Keka/The Unarchiver on Mac).
 
 pyzipper can only WRITE its AES format (AESZipFile) -- its plain ZipFile.get_encrypter()
 is an unimplemented stub, so it can only READ legacy ZipCrypto, never write it. There's
@@ -18,9 +18,15 @@ zips, so LegacyZipEncrypter below implements the classic PKWARE stream cipher di
 plugs into pyzipper's ZipFile via the same get_encrypter() extension point real AES
 support uses. Everything else (compression, headers, zip64, directory bookkeeping) is
 pyzipper's normal, well-tested code path -- only the cipher itself is new.
+
+Reading (extract_zip) always goes through pyzipper.AESZipFile regardless of which
+mode wrote the file -- verified empirically that it transparently handles legacy
+ZipCrypto entries, AES entries, and unencrypted entries through one code path, so
+there's no need to detect the mode before opening a zip to unlock it.
 """
 import errno
 import os
+import shutil
 import threading
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
@@ -107,8 +113,12 @@ class _LegacyZipFile(pyzipper.ZipFile):
         return LegacyZipEncrypter(self.pwd)
 
 
+MODE_STANDARD = "standard"
+MODE_AES = "aes"
+
+
 class EncryptionError(Exception):
-    """Base class for all user-facing encryption failures."""
+    """Base class for all user-facing encryption/decryption failures."""
 
 
 class OutputExistsError(EncryptionError):
@@ -127,10 +137,32 @@ class PermissionDeniedError(EncryptionError):
     pass
 
 
+class WrongPasswordError(EncryptionError):
+    pass
+
+
+class UnsafePathError(EncryptionError):
+    pass
+
+
 def _is_disk_full(exc: OSError) -> bool:
     if getattr(exc, "errno", None) == errno.ENOSPC:
         return True
     return getattr(exc, "winerror", None) == 112
+
+
+def _open_writer(mode: str, tmp_path: Path) -> pyzipper.ZipFile:
+    if mode == MODE_STANDARD:
+        return _LegacyZipFile(tmp_path, "w", compression=pyzipper.ZIP_DEFLATED)
+    if mode == MODE_AES:
+        return pyzipper.AESZipFile(
+            tmp_path,
+            "w",
+            compression=pyzipper.ZIP_DEFLATED,
+            encryption=pyzipper.WZ_AES,
+            encryption_kwargs={"nbits": 256},
+        )
+    raise ValueError(f"Unknown encryption mode: {mode!r}")
 
 
 def encrypt_to_zip(
@@ -138,6 +170,7 @@ def encrypt_to_zip(
     dest_zip: Path,
     password: str,
     *,
+    mode: str = MODE_STANDARD,
     total_size: Optional[int] = None,
     overwrite: bool = False,
     progress_cb: Optional[ProgressCallback] = None,
@@ -145,7 +178,7 @@ def encrypt_to_zip(
     chunk_size: int = 1024 * 1024,
 ) -> Path:
     """Write `entries` (as produced by fsutil.collect_entries) into dest_zip as a
-    legacy-ZipCrypto password-protected zip.
+    password-protected zip, using `mode` (MODE_STANDARD or MODE_AES).
 
     Writes to a temporary `dest_zip.part` file in the same directory and only
     os.replace()s it onto dest_zip on full success, so a crash, cancellation, or
@@ -165,13 +198,14 @@ def encrypt_to_zip(
     tmp_path = dest_zip.with_name(dest_zip.name + ".part")
 
     try:
-        with _LegacyZipFile(tmp_path, "w", compression=pyzipper.ZIP_DEFLATED) as zf:
+        with _open_writer(mode, tmp_path) as zf:
             zf.setpassword(password.encode("utf-8"))
+            zinfo_cls = zf.zipinfo_cls
             bytes_done = 0
             for abs_path, arcname in entries:
                 if cancel_event is not None and cancel_event.is_set():
                     raise CancelledError("Encryption cancelled")
-                zinfo = pyzipper.ZipInfo.from_file(abs_path, arcname)
+                zinfo = zinfo_cls.from_file(abs_path, arcname)
                 zinfo.compress_type = pyzipper.ZIP_DEFLATED
                 with open(abs_path, "rb") as src, zf.open(zinfo, mode="w") as dst:
                     while True:
@@ -203,8 +237,101 @@ def encrypt_to_zip(
     return dest_zip
 
 
+def extract_zip(
+    source_zip: Path,
+    dest_dir: Path,
+    password: str,
+    *,
+    progress_cb: Optional[ProgressCallback] = None,
+    cancel_event: Optional[threading.Event] = None,
+    chunk_size: int = 1024 * 1024,
+) -> Path:
+    """Extract every file in source_zip (legacy ZipCrypto, AES-256, or
+    unencrypted -- auto-handled by pyzipper.AESZipFile regardless of which wrote
+    it) into dest_dir.
+
+    Extracts into a temporary sibling directory and renames it into place only
+    on full success, so a cancelled/failed extraction never leaves a half-
+    populated dest_dir. Every member's resolved path is validated to stay under
+    dest_dir before anything is written (zip-slip protection) -- this has to be
+    done explicitly since streaming per-entry for progress/cancel support means
+    stdlib zipfile's own extractall() path-sanitizing never runs.
+
+    Raises WrongPasswordError, UnsafePathError, CancelledError, DiskFullError,
+    PermissionDeniedError, or EncryptionError. Never includes `password` in any
+    exception message, log line, or filename.
+    """
+    source_zip = Path(source_zip)
+    dest_dir = Path(dest_dir)
+    tmp_dir = dest_dir.with_name(dest_dir.name + ".part")
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+
+    try:
+        with pyzipper.AESZipFile(source_zip) as zf:
+            pwd_bytes = password.encode("utf-8")
+            dest_root = tmp_dir.resolve()
+
+            targets = []
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                target = (tmp_dir / info.filename).resolve()
+                if dest_root not in target.parents:
+                    raise UnsafePathError(f"Zip entry escapes destination: {info.filename}")
+                targets.append((info, target))
+
+            total_size = sum(info.file_size for info, _ in targets) or 1
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+
+            bytes_done = 0
+            for info, target in targets:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise CancelledError("Extraction cancelled")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info, mode="r", pwd=pwd_bytes) as src, open(target, "wb") as dst:
+                    while True:
+                        if cancel_event is not None and cancel_event.is_set():
+                            raise CancelledError("Extraction cancelled")
+                        chunk = src.read(chunk_size)
+                        if not chunk:
+                            break
+                        dst.write(chunk)
+                        bytes_done += len(chunk)
+                        if progress_cb is not None:
+                            progress_cb(bytes_done, total_size, info.filename)
+    except RuntimeError as e:
+        _cleanup_dir(tmp_dir)
+        if "bad password" in str(e).lower():
+            raise WrongPasswordError("Incorrect password") from e
+        raise EncryptionError(str(e)) from e
+    except (CancelledError, UnsafePathError):
+        _cleanup_dir(tmp_dir)
+        raise
+    except PermissionError as e:
+        _cleanup_dir(tmp_dir)
+        raise PermissionDeniedError(str(getattr(e, "filename", None) or e)) from e
+    except OSError as e:
+        _cleanup_dir(tmp_dir)
+        if _is_disk_full(e):
+            raise DiskFullError("Not enough disk space to finish") from e
+        raise EncryptionError(str(e)) from e
+    except Exception as e:
+        _cleanup_dir(tmp_dir)
+        raise EncryptionError(str(e)) from e
+
+    if dest_dir.exists():
+        shutil.rmtree(dest_dir)
+    os.replace(tmp_dir, dest_dir)
+    return dest_dir
+
+
 def _cleanup(tmp_path: Path) -> None:
     try:
         tmp_path.unlink()
     except FileNotFoundError:
         pass
+
+
+def _cleanup_dir(tmp_dir: Path) -> None:
+    shutil.rmtree(tmp_dir, ignore_errors=True)

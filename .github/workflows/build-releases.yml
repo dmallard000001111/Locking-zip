@@ -33,9 +33,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            asset: LockingZip-macOS-AppleSilicon.zip
+            asset: ZipLock-macOS-AppleSilicon.zip
           - os: windows-latest
-            asset: LockingZip-Windows.zip
+            asset: ZipLock-Windows.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pyinstaller packaging/LockingZip.spec --noconfirm
+      - run: pyinstaller packaging/ZipLock.spec --noconfirm
 
       # Self-test the FROZEN build: proves tkinterdnd2's tkdnd extension actually
       # loads inside the bundle, not just that the import succeeds (see gui.py /
@@ -53,25 +53,25 @@ jobs:
       - name: Self-test frozen app (macOS)
         if: runner.os == 'macOS'
         run: |
-          OUTPUT="$(dist/LockingZip.app/Contents/MacOS/LockingZip --selftest)"
+          OUTPUT="$("dist/Zip Lock.app/Contents/MacOS/Zip Lock" --selftest)"
           echo "$OUTPUT"
           echo "$OUTPUT" | grep -q "SELFTEST_OK"
       - name: Self-test frozen app (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $proc = Start-Process -FilePath "dist\LockingZip\LockingZip.exe" `
+          $proc = Start-Process -FilePath "dist\Zip Lock\Zip Lock.exe" `
             -ArgumentList "--selftest" -PassThru -Wait
           if ($proc.ExitCode -ne 0) { throw "Frozen self-test failed (exit $($proc.ExitCode))" }
 
       # ditto (not zip) on macOS: preserves the .app bundle's symlinks/permissions.
       - name: Package (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent "dist/LockingZip.app" "${{ matrix.asset }}"
+        run: ditto -c -k --keepParent "dist/Zip Lock.app" "${{ matrix.asset }}"
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path "dist\LockingZip" -DestinationPath "${{ matrix.asset }}"
+        run: Compress-Archive -Path "dist\Zip Lock" -DestinationPath "${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -101,11 +101,11 @@ jobs:
             --notes "$(cat <<'NOTES'
           Freshly built from the newest code. Both apps are unsigned personal builds -- expect a one-time security prompt.
 
-          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the macOS zip, unzip, move "LockingZip.app" wherever you like, then RIGHT-CLICK it and choose Open the first time (a normal double-click shows a warning with no Open button). Intel Macs aren't covered by this build; run from source instead (see the README) -- it's quick and works reliably.
+          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the macOS zip, unzip, move "Zip Lock.app" wherever you like, then RIGHT-CLICK it and choose Open the first time (a normal double-click shows a warning with no Open button). Intel Macs aren't covered by this build; run from source instead (see the README) -- it's quick and works reliably.
 
-          **Windows** -- download the Windows zip, unzip the whole folder, and run "LockingZip.exe" inside it. If SmartScreen shows "Windows protected your PC", click "More info" then "Run anyway".
+          **Windows** -- download the Windows zip, unzip the whole folder, and run "Zip Lock.exe" inside it. If SmartScreen shows "Windows protected your PC", click "More info" then "Run anyway".
 
-          Drop a file or folder onto the app, set a password, and it saves a password-protected .zip you can open anywhere by double-clicking and entering the password.
+          Drop a file or folder onto the app, set a password, and it saves a password-protected .zip you can open anywhere by double-clicking and entering the password. Choose Standard (opens everywhere) or AES-256 (stronger, needs 7-Zip/Keka) protection, and unlock protected zips right in the app.
           NOTES
           )" \
-            LockingZip-macOS-AppleSilicon.zip LockingZip-Windows.zip
+            ZipLock-macOS-AppleSilicon.zip ZipLock-Windows.zip

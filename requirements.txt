@@ -1,4 +1,5 @@
 pyzipper>=0.3.6
+pycryptodomex>=3.20.0  # AES-256 mode; already a transitive pyzipper dependency, pinned explicitly since it's now a hard requirement of a user-facing feature
 tkinterdnd2>=0.4.2
 pyinstaller>=6.10.0
 pyinstaller-hooks-contrib>=2025.0

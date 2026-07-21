@@ -132,6 +132,43 @@ def apply_theme(root: tk.Tk) -> dict:
     style.map("TCheckbutton", background=[("active", p["bg"])])
 
     style.configure(
+        "TRadiobutton",
+        background=p["bg"],
+        foreground=p["text"],
+        font=(family, 10),
+    )
+    style.map("TRadiobutton", background=[("active", p["bg"])])
+
+    # Segmented Lock/Unlock switch: two buttons, one styled "active" (filled
+    # accent) and the other "inactive" (flat, muted) depending on which mode
+    # is selected -- swapped live by the caller, not via ttk state maps, since
+    # this needs to persist as a selection rather than a hover/press state.
+    style.configure(
+        "Segment.TButton",
+        background=p["surface"],
+        foreground=p["text_muted"],
+        borderwidth=0,
+        focusthickness=0,
+        padding=(18, 8),
+        font=(family, 11, "bold"),
+    )
+    style.map(
+        "Segment.TButton",
+        background=[("active", p["surface_hover"])],
+        foreground=[("active", p["text"])],
+    )
+    style.configure(
+        "SegmentActive.TButton",
+        background=p["accent"],
+        foreground="#ffffff",
+        borderwidth=0,
+        focusthickness=0,
+        padding=(18, 8),
+        font=(family, 11, "bold"),
+    )
+    style.map("SegmentActive.TButton", background=[("active", p["accent_hover"])])
+
+    style.configure(
         "Accent.Horizontal.TProgressbar",
         troughcolor=p["surface"],
         background=p["accent"],

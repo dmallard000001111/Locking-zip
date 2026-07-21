@@ -1,7 +1,7 @@
 #!/bin/bash
 # Double-click this file in Finder to pull the newest code and update
-# dependencies. Run this any time before "Run Locking Zip.command" if you
-# want to make sure you're on the latest version.
+# dependencies. Run this any time before "Run Zip Lock.command" if you want
+# to make sure you're on the latest version.
 cd "$(dirname "$0")"
 
 echo "Checking for updates..."
@@ -14,5 +14,5 @@ source venv/bin/activate
 pip install -q -r requirements.txt
 
 echo ""
-echo "Up to date. Double-click 'Run Locking Zip.command' to launch."
+echo "Up to date. Double-click 'Run Zip Lock.command' to launch."
 read -p "Press Enter to close..."

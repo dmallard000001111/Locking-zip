@@ -23,6 +23,12 @@ def suggest_dest_name(source: Path) -> str:
     return f"{Path(source).stem}.zip"
 
 
+def suggest_extract_dir(zip_path: Path) -> Path:
+    """Default extraction target: a same-named folder next to the zip."""
+    zip_path = Path(zip_path)
+    return zip_path.with_name(zip_path.stem)
+
+
 def validate_source(path: Optional[Path]) -> Optional[str]:
     """Return an error string if `path` isn't a usable source, else None."""
     if path is None:

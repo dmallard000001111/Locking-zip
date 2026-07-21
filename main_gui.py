@@ -4,7 +4,7 @@ import sys
 
 
 def _selftest():
-    """Invoked as `LockingZip --selftest` by the CI build job. Instantiates a real
+    """Invoked as `Zip Lock --selftest` by the CI build job. Instantiates a real
     TkinterDnD.Tk() rather than just importing tkinterdnd2 -- its tkdnd Tcl
     extension is loaded at runtime, not at import time, so a frozen build can
     have a working import but a broken drag-and-drop extension (see gui.py)."""

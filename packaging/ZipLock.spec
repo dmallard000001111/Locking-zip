@@ -33,7 +33,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='LockingZip',
+    name='Zip Lock',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -52,14 +52,14 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='LockingZip',
+    name='Zip Lock',
 )
 # BUNDLE (.app wrapping) is macOS-only; on Windows the build ends at COLLECT,
-# leaving dist/LockingZip/LockingZip.exe -- same onedir layout, no bundle.
+# leaving dist/Zip Lock/Zip Lock.exe -- same onedir layout, no bundle.
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name='LockingZip.app',
+        name='Zip Lock.app',
         icon=None,
         bundle_identifier='com.dmallard.lockingzip',
     )
