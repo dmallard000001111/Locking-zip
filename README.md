@@ -102,22 +102,21 @@ git clone <this repo's URL>
 cd Locking-zip
 ```
 
-That's it -- from here on, everything is double-clicking files in Finder, no
+That's it -- from here on, it's one file to double-click in Finder, no
 Terminal needed:
 
-- **`Run Zip Lock.command`** -- launches the app. The very first
-  double-click sets up a Python virtual environment and installs dependencies
-  (takes about a minute); every launch after that is a couple of seconds.
-- **`Update Zip Lock.command`** -- pulls the newest code from GitHub and
-  updates dependencies. Run this whenever you want to make sure you're on the
-  current version, then launch as usual.
+- **`Zip Lock.command`** -- pulls the newest code from GitHub, then launches
+  the app. The very first double-click also sets up a Python virtual
+  environment and installs dependencies (takes about a minute); every launch
+  after that is a couple of seconds. If you're offline, it just launches
+  whatever version is already there instead of failing.
 
-(First time only: macOS may warn that these are unidentified scripts --
-right-click each one and choose **Open** once to approve it, same as with any
+(First time only: macOS may warn that this is an unidentified script --
+right-click it and choose **Open** once to approve it, same as with any
 downloaded script.)
 
-Prefer the terminal instead? The two `.command` files above are just thin
-wrappers around this:
+Prefer the terminal instead? `Zip Lock.command` is just a thin wrapper
+around this:
 ```
 python3 -m venv venv
 source venv/bin/activate

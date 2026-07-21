@@ -1,8 +1,10 @@
 #!/bin/bash
-# Double-click this file in Finder to launch Zip Lock from source.
-# First run creates a virtual environment and installs dependencies (takes a
-# minute); every run after that starts in a couple of seconds.
+# Double-click this file in Finder to update to the newest version and launch
+# Zip Lock -- one file, no need to run a separate update step first.
 cd "$(dirname "$0")"
+
+echo "Checking for updates..."
+git pull || echo "Couldn't check for updates (offline?) -- launching the version already here."
 
 if [ ! -d venv ]; then
   echo "First-time setup: creating virtual environment..."
