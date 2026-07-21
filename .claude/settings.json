@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python main_gui.py *)",
+      "Bash(python3 main_gui.py *)",
+      "Bash(venv/bin/python main_gui.py *)"
+    ]
+  }
+}

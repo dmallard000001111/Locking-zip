@@ -1,0 +1,17 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# PyInstaller build artifacts
+build/
+dist/
+packaging/*.spec.bak
+
+# macOS
+.DS_Store
+
+# Local Claude Code tooling state, not project source (shared settings.json IS tracked)
+.claude/*
+!.claude/settings.json

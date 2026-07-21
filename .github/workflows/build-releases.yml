@@ -1,0 +1,107 @@
+# On-demand builds of the packaged app for macOS (Apple Silicon) and Windows,
+# published to a single rolling "Latest builds" release on the repo's Releases page.
+#
+# Trigger: manual only (Actions tab -> this workflow -> "Run workflow"), by design:
+# this repo is private for now, and macOS runners bill 10x against the free monthly
+# minutes. To also build automatically on every push later, add under `on:`:
+#   push:
+#     branches: [main]
+name: Build releases
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -q
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            asset: LockingZip-macOS-AppleSilicon.zip
+          - os: windows-latest
+            asset: LockingZip-Windows.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pyinstaller packaging/LockingZip.spec --noconfirm
+
+      # Self-test the FROZEN build: proves tkinterdnd2's tkdnd extension actually
+      # loads inside the bundle, not just that the import succeeds (see gui.py /
+      # main_gui.py). The Windows exe is windowed (no stdout), so its verdict is
+      # the exit code; on macOS we also require the marker text.
+      - name: Self-test frozen app (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          OUTPUT="$(dist/LockingZip.app/Contents/MacOS/LockingZip --selftest)"
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "SELFTEST_OK"
+      - name: Self-test frozen app (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $proc = Start-Process -FilePath "dist\LockingZip\LockingZip.exe" `
+            -ArgumentList "--selftest" -PassThru -Wait
+          if ($proc.ExitCode -ne 0) { throw "Frozen self-test failed (exit $($proc.ExitCode))" }
+
+      # ditto (not zip) on macOS: preserves the .app bundle's symlinks/permissions.
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent "dist/LockingZip.app" "${{ matrix.asset }}"
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "dist\LockingZip" -DestinationPath "${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      # Rolling release: exactly one "Latest builds" entry on the Releases page,
+      # replaced wholesale on every run so links always point at current builds.
+      - name: Publish rolling 'latest' release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes || true
+          git push origin :refs/tags/latest || true
+          gh release create latest \
+            --title "Latest builds ($(date +%Y-%m-%d))" \
+            --notes "$(cat <<'NOTES'
+          Freshly built from the newest code. Both apps are unsigned personal builds -- expect a one-time security prompt.
+
+          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the macOS zip, unzip, move "LockingZip.app" wherever you like, then RIGHT-CLICK it and choose Open the first time (a normal double-click shows a warning with no Open button). Intel Macs aren't covered by this build; run from source instead (see the README).
+
+          **Windows** -- download the Windows zip, unzip the whole folder, and run "LockingZip.exe" inside it. If SmartScreen shows "Windows protected your PC", click "More info" then "Run anyway".
+
+          Drop a file or folder onto the app, set a password, and it saves a password-protected .zip you can open anywhere by double-clicking and entering the password.
+          NOTES
+          )" \
+            LockingZip-macOS-AppleSilicon.zip LockingZip-Windows.zip
