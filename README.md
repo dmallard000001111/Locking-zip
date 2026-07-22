@@ -13,9 +13,20 @@ Ready-made downloads live on this repo's **Releases** page (right sidebar on
 GitHub, or `/releases`): one "Latest builds" entry with a macOS Apple Silicon
 zip and a Windows zip, rebuilt on demand from the newest code.
 
-- **macOS (Apple Silicon: M1/M2/M3/M4)** -- unzip, put `Zip Lock.app`
-  anywhere, then **right-click it and choose Open** the first time (the app is
-  unsigned, so a plain double-click shows a warning with no Open button).
+- **macOS (Apple Silicon: M1/M2/M3/M4)** -- unzip and put `Zip Lock.app`
+  anywhere. The first time you open it, macOS shows *"Apple could not verify…"*
+  and blocks it -- this is expected for an unsigned personal app, nothing is
+  wrong. To allow it (one time only):
+  1. Double-click the app once so the warning appears, then dismiss it.
+  2. Open **System Settings -> Privacy & Security**, scroll down to the
+     **Security** section, and click **Open Anyway** next to the "Zip Lock
+     was blocked" message.
+  3. Authenticate, then click **Open** on the final prompt.
+
+  After that it opens with a normal double-click every time. (Comfortable in
+  Terminal? `xattr -cr "/path/to/Zip Lock.app"` clears the block in one step
+  instead.) The warning only disappears completely with paid Apple
+  notarization, which this personal build doesn't have.
 - **macOS (Intel)** -- there's no packaged download for Intel Macs (GitHub
   retired its hosted Intel macOS build machines, so we can't produce one
   automatically). Run it from source instead -- see **section 4**, it's a
