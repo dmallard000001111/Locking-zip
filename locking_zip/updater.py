@@ -37,6 +37,14 @@ def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False))
 
 
+def current_build_label() -> str:
+    """Human-readable build identity for display in the UI. Changes when the
+    app self-updates, so it doubles as visible proof an update landed."""
+    if BUILD_SHA == "dev":
+        return "LockZip · source build"
+    return f"LockZip · build {BUILD_SHA[:7]}"
+
+
 def platform_asset_name() -> Optional[str]:
     if sys.platform == "darwin":
         return "LockZip-macOS-AppleSilicon.zip"
@@ -110,15 +118,21 @@ def _spawn_swap_helper(new_bundle: Path, target: Path) -> None:
     pid = os.getpid()
     if sys.platform == "darwin":
         script = target.parent / ".lockzip_update.sh"
-        relaunch_target = target  # `open` the .app
+        staged = f"{target}.update-tmp"
+        # Copy the new bundle in next to the old one FIRST (same volume), and
+        # only remove the old one once the copy succeeded -- so a failure never
+        # leaves the user with no app. If anything goes wrong we still relaunch
+        # whatever is at `target`.
         script.write_text(
             "#!/bin/bash\n"
-            "set -e\n"
             f'while kill -0 {pid} 2>/dev/null; do sleep 0.3; done\n'
-            f'rm -rf "{target}"\n'
-            f'mv "{new_bundle}" "{target}"\n'
-            f'xattr -cr "{target}" 2>/dev/null || true\n'
-            f'open "{relaunch_target}"\n'
+            f'rm -rf "{staged}"\n'
+            f'if cp -R "{new_bundle}" "{staged}"; then\n'
+            f'  rm -rf "{target}"\n'
+            f'  mv "{staged}" "{target}"\n'
+            f'  xattr -cr "{target}" 2>/dev/null || true\n'
+            f'fi\n'
+            f'open "{target}"\n'
             f'rm -f "{script}"\n'
         )
         script.chmod(0o755)
@@ -131,6 +145,9 @@ def _spawn_swap_helper(new_bundle: Path, target: Path) -> None:
     elif sys.platform.startswith("win"):
         script = target.parent / "_lockzip_update.cmd"
         exe = target / "LockZip.exe"
+        staged = f"{target}.update-tmp"
+        # Same safety shape as macOS: copy the new folder in beside the old one
+        # first, and only remove the old one once the copy is verified present.
         script.write_text(
             "@echo off\r\n"
             ":wait\r\n"
@@ -139,8 +156,12 @@ def _spawn_swap_helper(new_bundle: Path, target: Path) -> None:
             "  timeout /t 1 /nobreak >NUL\r\n"
             "  goto wait\r\n"
             ")\r\n"
-            f'rmdir /S /Q "{target}"\r\n'
-            f'move "{new_bundle}" "{target}"\r\n'
+            f'if exist "{staged}" rmdir /S /Q "{staged}"\r\n'
+            f'xcopy /E /I /Y /Q "{new_bundle}" "{staged}" >NUL\r\n'
+            f'if exist "{staged}\\LockZip.exe" (\r\n'
+            f'  rmdir /S /Q "{target}"\r\n'
+            f'  move "{staged}" "{target}" >NUL\r\n'
+            f')\r\n'
             f'start "" "{exe}"\r\n'
             f'del "%~f0"\r\n'
         )

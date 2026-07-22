@@ -16,7 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
-from locking_zip import core, fsutil, gui_logic, theme
+from locking_zip import core, fsutil, gui_logic, theme, updater
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -252,6 +252,13 @@ class LockingZipApp:
 
         self._lock_frame = self._build_lock_ui(self._content)
         self._unlock_frame = self._build_unlock_ui(self._content)
+
+        # Build-ID line: shows which build you're running. It changes when the
+        # app self-updates, so it doubles as a visible confirmation that an
+        # update was installed.
+        ttk.Label(outer, text=updater.current_build_label(), style="Muted.TLabel").pack(
+            anchor="e", pady=(10, 0)
+        )
 
         self._switch_mode("lock")
 
