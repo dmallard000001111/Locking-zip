@@ -5,11 +5,11 @@
 # that isn't reliably provisioned anymore. Intel Mac users run from source
 # instead (see the README) -- fast, reliable, no runner dependency.
 #
-# Trigger: manual only (Actions tab -> this workflow -> "Run workflow"), by design:
-# this repo is private for now, and macOS runners bill 10x against the free monthly
-# minutes. To also build automatically on every push later, add under `on:`:
-#   push:
-#     branches: [main]
+# Trigger: manual only (Actions tab -> this workflow -> "Run workflow"). The repo
+# is public, so GitHub-hosted runner minutes are free/unlimited; it's still
+# manual (not build-on-push) to avoid re-cutting a release on every commit. The
+# packaged app self-updates from this rolling release, so users only download
+# once and get later builds automatically.
 name: Build releases
 
 "on":
@@ -33,9 +33,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            asset: ZipLock-macOS-AppleSilicon.zip
+            asset: LockZip-macOS-AppleSilicon.zip
           - os: windows-latest
-            asset: ZipLock-Windows.zip
+            asset: LockZip-Windows.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,16 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pyinstaller packaging/ZipLock.spec --noconfirm
+
+      # Stamp the exact commit into the frozen build so the self-updater knows
+      # which build it is. Env-var + python avoids shell-quoting differences
+      # between the macOS (bash) and Windows runners.
+      - name: Stamp build id
+        env:
+          LOCKZIP_BUILD_SHA: ${{ github.sha }}
+        run: python -c "import os, pathlib; pathlib.Path('locking_zip/_build_info.py').write_text('BUILD_SHA = ' + repr(os.environ['LOCKZIP_BUILD_SHA']) + '\n')"
+
+      - run: pyinstaller packaging/LockZip.spec --noconfirm
 
       # Self-test the FROZEN build: proves tkinterdnd2's tkdnd extension actually
       # loads inside the bundle, not just that the import succeeds (see gui.py /
@@ -53,25 +62,25 @@ jobs:
       - name: Self-test frozen app (macOS)
         if: runner.os == 'macOS'
         run: |
-          OUTPUT="$("dist/Zip Lock.app/Contents/MacOS/Zip Lock" --selftest)"
+          OUTPUT="$(dist/LockZip.app/Contents/MacOS/LockZip --selftest)"
           echo "$OUTPUT"
           echo "$OUTPUT" | grep -q "SELFTEST_OK"
       - name: Self-test frozen app (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $proc = Start-Process -FilePath "dist\Zip Lock\Zip Lock.exe" `
+          $proc = Start-Process -FilePath "dist\LockZip\LockZip.exe" `
             -ArgumentList "--selftest" -PassThru -Wait
           if ($proc.ExitCode -ne 0) { throw "Frozen self-test failed (exit $($proc.ExitCode))" }
 
       # ditto (not zip) on macOS: preserves the .app bundle's symlinks/permissions.
       - name: Package (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent "dist/Zip Lock.app" "${{ matrix.asset }}"
+        run: ditto -c -k --keepParent "dist/LockZip.app" "${{ matrix.asset }}"
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path "dist\Zip Lock" -DestinationPath "${{ matrix.asset }}"
+        run: Compress-Archive -Path "dist\LockZip" -DestinationPath "${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -99,13 +108,13 @@ jobs:
           gh release create latest \
             --title "Latest builds ($(date +%Y-%m-%d))" \
             --notes "$(cat <<'NOTES'
-          Freshly built from the newest code. Both apps are unsigned personal builds -- macOS and Windows each show a one-time security prompt you have to click past (steps below).
+          Freshly built from the newest code. These are unsigned personal builds, so macOS and Windows each show a one-time security prompt the first time (steps below). After that, the app updates itself automatically -- you only download once.
 
-          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the macOS zip, unzip, and move "Zip Lock.app" wherever you like. The first time you open it, macOS says "Apple could not verify..." and blocks it -- this is expected for an unsigned app. To allow it once: double-click the app (the warning appears, dismiss it), then open System Settings -> Privacy & Security, scroll to the Security section, click "Open Anyway" next to the Zip Lock message, authenticate, and click Open. After that it opens normally every time. (Terminal alternative: run  xattr -cr "/path/to/Zip Lock.app"  to clear the block in one step.) Intel Macs aren't covered by this build; run from source instead (see the README).
+          **macOS (Apple Silicon: M1/M2/M3/M4)** -- download the macOS zip, unzip, and move "LockZip.app" wherever you like. The first time you open it, macOS says "Apple could not verify..." and blocks it -- this is expected for an unsigned app. To allow it once: double-click the app (the warning appears, dismiss it), then open System Settings -> Privacy & Security, scroll to the Security section, click "Open Anyway" next to the LockZip message, authenticate, and click Open. After that it opens normally every time (and future updates, which the app installs itself, never show the prompt again). Terminal alternative: run  xattr -cr "/path/to/LockZip.app"  to clear the block in one step. Intel Macs aren't covered by this build; run from source instead (see the README).
 
-          **Windows** -- download the Windows zip, unzip the whole folder, and run "Zip Lock.exe" inside it. If SmartScreen shows "Windows protected your PC", click "More info" then "Run anyway".
+          **Windows** -- download the Windows zip, unzip the whole folder, and run "LockZip.exe" inside it. If SmartScreen shows "Windows protected your PC", click "More info" then "Run anyway".
 
           Drop a file or folder onto the app, set a password, and it saves a password-protected .zip you can open anywhere by double-clicking and entering the password. Choose Standard (opens everywhere) or AES-256 (stronger, needs 7-Zip/Keka) protection, and unlock protected zips right in the app.
           NOTES
           )" \
-            ZipLock-macOS-AppleSilicon.zip ZipLock-Windows.zip
+            LockZip-macOS-AppleSilicon.zip LockZip-Windows.zip

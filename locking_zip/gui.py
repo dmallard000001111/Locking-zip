@@ -24,7 +24,7 @@ try:
 except ImportError:
     _HAS_DND = False
 
-APP_NAME = "Zip Lock"
+APP_NAME = "LockZip"
 
 
 class PasswordDialog(tk.Toplevel):

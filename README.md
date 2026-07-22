@@ -1,9 +1,9 @@
-# Zip Lock
+# LockZip
 
 A tiny drag-and-drop app: drop a file or folder onto it, set a password, and it
 saves a password-protected `.zip`. Choose **Standard** protection (opens
 anywhere with a double-click, no extra software) or **AES-256** (much
-stronger, but needs a tool like 7-Zip or Keka to open). Zip Lock can also
+stronger, but needs a tool like 7-Zip or Keka to open). LockZip can also
 **unlock** protected zips right in the app -- either kind it made, or most
 password-protected zips from other tools.
 
@@ -13,18 +13,24 @@ Ready-made downloads live on this repo's **Releases** page (right sidebar on
 GitHub, or `/releases`): one "Latest builds" entry with a macOS Apple Silicon
 zip and a Windows zip, rebuilt on demand from the newest code.
 
-- **macOS (Apple Silicon: M1/M2/M3/M4)** -- unzip and put `Zip Lock.app`
+**You only download once.** After the first install, LockZip updates itself:
+on launch it checks for a newer build, installs it if there is one, and then
+runs. So you get later versions automatically without visiting this page again
+(and self-updates never re-trigger the macOS security prompt below -- that's a
+one-time thing at first install).
+
+- **macOS (Apple Silicon: M1/M2/M3/M4)** -- unzip and put `LockZip.app`
   anywhere. The first time you open it, macOS shows *"Apple could not verify…"*
   and blocks it -- this is expected for an unsigned personal app, nothing is
   wrong. To allow it (one time only):
   1. Double-click the app once so the warning appears, then dismiss it.
   2. Open **System Settings -> Privacy & Security**, scroll down to the
-     **Security** section, and click **Open Anyway** next to the "Zip Lock
+     **Security** section, and click **Open Anyway** next to the "LockZip
      was blocked" message.
   3. Authenticate, then click **Open** on the final prompt.
 
   After that it opens with a normal double-click every time. (Comfortable in
-  Terminal? `xattr -cr "/path/to/Zip Lock.app"` clears the block in one step
+  Terminal? `xattr -cr "/path/to/LockZip.app"` clears the block in one step
   instead.) The warning only disappears completely with paid Apple
   notarization, which this personal build doesn't have.
 - **macOS (Intel)** -- there's no packaged download for Intel Macs (GitHub
@@ -32,7 +38,7 @@ zip and a Windows zip, rebuilt on demand from the newest code.
   automatically). Run it from source instead -- see **section 4**, it's a
   one-time setup and after that it's just double-clicking a file, same as any
   other app.
-- **Windows** -- unzip the whole folder and run `Zip Lock.exe` inside it.
+- **Windows** -- unzip the whole folder and run `LockZip.exe` inside it.
   If SmartScreen says "Windows protected your PC", click **More info -> Run
   anyway** (same unsigned-app reason).
 
@@ -62,10 +68,10 @@ be told how many were skipped before the zip is created.
   rely on it for highly sensitive data.**
 - **AES-256** -- real, strong encryption. Neither Windows nor macOS can open
   it with their built-in tools, though -- the recipient needs **7-Zip**
-  (Windows) or **Keka** / **The Unarchiver** (Mac), or they can use Zip Lock's
+  (Windows) or **Keka** / **The Unarchiver** (Mac), or they can use LockZip's
   own **Unlock** tab.
 
-Either way: Zip Lock never stores or logs your password anywhere; if you
+Either way: LockZip never stores or logs your password anywhere; if you
 forget it, there is no recovery.
 
 ## 2. Unlocking a zip
@@ -77,7 +83,7 @@ forget it, there is no recovery.
 4. If the password's wrong, you'll be asked to try again without having to
    re-pick the file or the destination.
 
-This works on zips Zip Lock made in either protection level, and on most
+This works on zips LockZip made in either protection level, and on most
 password-protected zips from other tools too.
 
 ## 3. Development
@@ -93,11 +99,11 @@ python -m pytest tests/ -q
 ### Rebuilding the packaged app
 
 ```
-pyinstaller packaging/ZipLock.spec --noconfirm
+pyinstaller packaging/LockZip.spec --noconfirm
 ```
 
-This produces a onedir, windowed build at `dist/Zip Lock` (and, on macOS,
-`dist/Zip Lock.app`). The GitHub Actions workflow does the same thing plus a
+This produces a onedir, windowed build at `dist/LockZip` (and, on macOS,
+`dist/LockZip.app`). The GitHub Actions workflow does the same thing plus a
 `--selftest` check that the frozen build's drag-and-drop extension actually
 loads, then packages and publishes both platforms to the rolling `latest`
 release.
@@ -116,7 +122,7 @@ cd Locking-zip
 That's it -- from here on, it's one file to double-click in Finder, no
 Terminal needed:
 
-- **`Zip Lock.command`** -- pulls the newest code from GitHub, then launches
+- **`LockZip.command`** -- pulls the newest code from GitHub, then launches
   the app. The very first double-click also sets up a Python virtual
   environment and installs dependencies (takes about a minute); every launch
   after that is a couple of seconds. If you're offline, it just launches
@@ -126,7 +132,7 @@ Terminal needed:
 right-click it and choose **Open** once to approve it, same as with any
 downloaded script.)
 
-Prefer the terminal instead? `Zip Lock.command` is just a thin wrapper
+Prefer the terminal instead? `LockZip.command` is just a thin wrapper
 around this:
 ```
 python3 -m venv venv
